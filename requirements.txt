@@ -24,11 +24,11 @@ sqlalchemy==2.0.30
 
 # Security tooling
 PyJWT==2.10.2
-cryptography==44.0.1
+cryptography==46.0.7
 
 # Reporting
-jinja2==3.1.4
-weasyprint==65.0
+jinja2==3.1.6
+weasyprint==68.0
 pandas==2.2.2
 openpyxl==3.1.4
 
