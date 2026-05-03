@@ -1,0 +1,317 @@
+version: "3.9"
+
+# EcomSec — Docker Compose
+# Orchestrates all 20 security agents + Paperclip + Dashboard
+# Author: Alvin, Security Architect
+# NOTE: All secrets are injected via environment — never hardcode here
+
+networks:
+  ecomsec-net:
+    driver: bridge
+
+volumes:
+  paperclip-data:
+  redis-data:
+  postgres-data:
+
+services:
+
+  # ─── PAPERCLIP ORCHESTRATION LAYER ───────────────────────────────
+  paperclip:
+    image: paperclip/orchestrator:latest
+    container_name: paperclip-orchestrator
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./orchestration/paperclip-config:/config
+      - paperclip-data:/data
+    environment:
+      - PAPERCLIP_CONFIG=/config/agent-registry.yaml
+      - PAPERCLIP_LOG_LEVEL=INFO
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: ecomsec-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: ecomsec-postgres
+    environment:
+      - POSTGRES_DB=ecomsec
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  # ─── REQUIRED AGENTS ──────────────────────────────────────────────
+  edr-agent:
+    build: ./agents/edr-agent
+    container_name: edr-agent
+    ports: ["8001:8001"]
+    environment:
+      - CROWDSTRIKE_API_KEY=${CROWDSTRIKE_API_KEY}
+      - SENTINELONE_API_KEY=${SENTINELONE_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip, redis]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  email-security-agent:
+    build: ./agents/email-security-agent
+    container_name: email-security-agent
+    ports: ["8002:8002"]
+    environment:
+      - MS_DEFENDER_API_KEY=${MS_DEFENDER_API_KEY}
+      - PROOFPOINT_API_KEY=${PROOFPOINT_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  dns-security-agent:
+    build: ./agents/dns-security-agent
+    container_name: dns-security-agent
+    ports: ["8003:8003"]
+    environment:
+      - UMBRELLA_API_KEY=${UMBRELLA_API_KEY}
+      - CLOUDFLARE_API_KEY=${CLOUDFLARE_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  asset-management-agent:
+    build: ./agents/asset-management-agent
+    container_name: asset-management-agent
+    ports: ["8004:8004"]
+    environment:
+      - AXONIUS_API_KEY=${AXONIUS_API_KEY}
+      - SERVICENOW_API_KEY=${SERVICENOW_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  siem-agent:
+    build: ./agents/siem-agent
+    container_name: siem-agent
+    ports: ["8005:8005"]
+    environment:
+      - SPLUNK_API_KEY=${SPLUNK_API_KEY}
+      - SPLUNK_HOST=${SPLUNK_HOST}
+      - SENTINEL_API_KEY=${SENTINEL_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip, redis]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  web-proxy-agent:
+    build: ./agents/web-proxy-agent
+    container_name: web-proxy-agent
+    ports: ["8006:8006"]
+    environment:
+      - ZSCALER_API_KEY=${ZSCALER_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  dlp-agent:
+    build: ./agents/dlp-agent
+    container_name: dlp-agent
+    ports: ["8007:8007"]
+    environment:
+      - PURVIEW_API_KEY=${PURVIEW_API_KEY}
+      - NIGHTFALL_API_KEY=${NIGHTFALL_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  api-gateway-agent:
+    build: ./agents/api-gateway-agent
+    container_name: api-gateway-agent
+    ports: ["8008:8008"]
+    environment:
+      - KONG_API_KEY=${KONG_API_KEY}
+      - AWS_API_GATEWAY_KEY=${AWS_API_GATEWAY_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  waf-bot-agent:
+    build: ./agents/waf-bot-agent
+    container_name: waf-bot-agent
+    ports: ["8009:8009"]
+    environment:
+      - CLOUDFLARE_WAF_KEY=${CLOUDFLARE_WAF_KEY}
+      - IMPERVA_API_KEY=${IMPERVA_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  sast-dast-agent:
+    build: ./agents/sast-dast-agent
+    container_name: sast-dast-agent
+    ports: ["8010:8010"]
+    environment:
+      - CHECKMARX_API_KEY=${CHECKMARX_API_KEY}
+      - ZAP_API_KEY=${ZAP_API_KEY}
+      - SNYK_API_KEY=${SNYK_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  brand-protection-agent:
+    build: ./agents/brand-protection-agent
+    container_name: brand-protection-agent
+    ports: ["8011:8011"]
+    environment:
+      - RECORDED_FUTURE_API_KEY=${RECORDED_FUTURE_API_KEY}
+      - ZEROFOX_API_KEY=${ZEROFOX_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  vulnerability-agent:
+    build: ./agents/vulnerability-agent
+    container_name: vulnerability-agent
+    ports: ["8012:8012"]
+    environment:
+      - TENABLE_API_KEY=${TENABLE_API_KEY}
+      - QUALYS_API_KEY=${QUALYS_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  risk-dashboard-agent:
+    build: ./agents/risk-dashboard-agent
+    container_name: risk-dashboard-agent
+    ports: ["8013:8013"]
+    environment:
+      - PAPERCLIP_BI_KEY=${PAPERCLIP_BI_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+      - DB_URL=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/ecomsec
+    depends_on: [paperclip, postgres]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  # ─── RECOMMENDED AGENTS ───────────────────────────────────────────
+  iam-pam-agent:
+    build: ./agents/iam-pam-agent
+    container_name: iam-pam-agent
+    ports: ["8014:8014"]
+    environment:
+      - OKTA_API_KEY=${OKTA_API_KEY}
+      - CYBERARK_API_KEY=${CYBERARK_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  cloud-security-agent:
+    build: ./agents/cloud-security-agent
+    container_name: cloud-security-agent
+    ports: ["8015:8015"]
+    environment:
+      - WIZ_API_KEY=${WIZ_API_KEY}
+      - PRISMA_API_KEY=${PRISMA_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  incident-response-agent:
+    build: ./agents/incident-response-agent
+    container_name: incident-response-agent
+    ports: ["8016:8016"]
+    environment:
+      - THEHIVE_API_KEY=${THEHIVE_API_KEY}
+      - PAGERDUTY_API_KEY=${PAGERDUTY_API_KEY}
+      - JIRA_API_KEY=${JIRA_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  threat-intel-agent:
+    build: ./agents/threat-intel-agent
+    container_name: threat-intel-agent
+    ports: ["8017:8017"]
+    environment:
+      - MISP_API_KEY=${MISP_API_KEY}
+      - VIRUSTOTAL_API_KEY=${VIRUSTOTAL_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  backup-recovery-agent:
+    build: ./agents/backup-recovery-agent
+    container_name: backup-recovery-agent
+    ports: ["8018:8018"]
+    environment:
+      - VEEAM_API_KEY=${VEEAM_API_KEY}
+      - AWS_BACKUP_KEY=${AWS_BACKUP_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  compliance-grc-agent:
+    build: ./agents/compliance-grc-agent
+    container_name: compliance-grc-agent
+    ports: ["8019:8019"]
+    environment:
+      - VANTA_API_KEY=${VANTA_API_KEY}
+      - DRATA_API_KEY=${DRATA_API_KEY}
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - PAPERCLIP_EVENT_BUS_URL=http://paperclip:9000/events
+    depends_on: [paperclip]
+    networks: [ecomsec-net]
+    restart: unless-stopped
+
+  # ─── SINGLE PANE OF GLASS DASHBOARD ──────────────────────────────
+  spog-dashboard:
+    build: ./dashboard/single-pane-of-glass
+    container_name: spog-dashboard
+    ports: ["3000:3000"]
+    environment:
+      - PAPERCLIP_ORCHESTRATOR_URL=http://paperclip:9000
+      - DB_URL=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/ecomsec
+    depends_on: [paperclip, postgres, risk-dashboard-agent]
+    networks: [ecomsec-net]
+    restart: unless-stopped

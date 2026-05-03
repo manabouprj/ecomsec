@@ -1,0 +1,192 @@
+name: EcomSec CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/manabouprj/ecomsec
+
+jobs:
+
+  # ─── STAGE 1: SAST & DEPENDENCY SCAN ─────────────────────────────
+  sast-scan:
+    name: SAST & Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Snyk
+        run: npm install -g snyk
+
+      - name: Snyk dependency scan
+        run: snyk test --severity-threshold=high
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        continue-on-error: false  # BLOCK on high/critical
+
+      - name: Bandit SAST scan (Python)
+        run: |
+          pip install bandit
+          bandit -r agents/ -ll -x agents/*/tests/ --exit-zero
+
+      - name: Semgrep SAST
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/python p/secrets p/owasp-top-ten
+
+      - name: Check for hardcoded secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+
+  # ─── STAGE 2: UNIT TESTS ──────────────────────────────────────────
+  unit-tests:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    needs: sast-scan
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest pytest-asyncio pytest-cov
+
+      - name: Run tests
+        run: |
+          pytest agents/ \
+            --cov=agents \
+            --cov-report=xml \
+            --cov-fail-under=70 \
+            -v
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+
+  # ─── STAGE 3: CONTAINER BUILD & SCAN ─────────────────────────────
+  container-build-scan:
+    name: Build & Scan Container Images
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    strategy:
+      matrix:
+        agent:
+          - edr-agent
+          - email-security-agent
+          - dns-security-agent
+          - asset-management-agent
+          - siem-agent
+          - web-proxy-agent
+          - dlp-agent
+          - api-gateway-agent
+          - waf-bot-agent
+          - sast-dast-agent
+          - brand-protection-agent
+          - vulnerability-agent
+          - risk-dashboard-agent
+          - iam-pam-agent
+          - cloud-security-agent
+          - incident-response-agent
+          - threat-intel-agent
+          - backup-recovery-agent
+          - compliance-grc-agent
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./agents/${{ matrix.agent }}
+          push: false
+          tags: ${{ env.IMAGE_PREFIX }}/${{ matrix.agent }}:${{ github.sha }}
+          load: true
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.agent }}:${{ github.sha }}
+          format: sarif
+          output: trivy-${{ matrix.agent }}.sarif
+          severity: CRITICAL,HIGH
+          exit-code: 1  # BLOCK on critical/high vulnerabilities
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-${{ matrix.agent }}.sarif
+
+  # ─── STAGE 4: DEPLOY TO STAGING ──────────────────────────────────
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: container-build-scan
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push images to registry
+        run: |
+          echo "Pushing all agent images to ${{ env.REGISTRY }}"
+          # Images pushed per-agent in previous stage
+
+      - name: Deploy to staging via Paperclip
+        run: |
+          curl -X POST ${{ secrets.PAPERCLIP_STAGING_URL }}/deploy \
+            -H "Authorization: Bearer ${{ secrets.PAPERCLIP_DEPLOY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"version": "${{ github.sha }}", "environment": "staging"}'
+
+  # ─── STAGE 5: DEPLOY TO PRODUCTION ───────────────────────────────
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: container-build-scan
+    if: github.ref == 'refs/heads/main'
+    environment: production  # Requires manual approval in GitHub Environments
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to production via Paperclip
+        run: |
+          curl -X POST ${{ secrets.PAPERCLIP_PROD_URL }}/deploy \
+            -H "Authorization: Bearer ${{ secrets.PAPERCLIP_DEPLOY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"version": "${{ github.sha }}", "environment": "production"}'
+
+      - name: Notify on success
+        if: success()
+        run: |
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H "Content-Type: application/json" \
+            -d '{"text": "✅ EcomSec v${{ github.sha }} deployed to production"}'

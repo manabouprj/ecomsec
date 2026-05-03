@@ -1,0 +1,543 @@
+---
+# EcomSec — Paperclip Agent Registry
+# All 20 security agents registered for orchestration
+# Version: 1.0.0
+# Author: Alvin, Security Architect
+
+platform:
+  name: ecomsec
+  version: "1.0.0"
+  orchestrator: paperclip
+  event_bus: async
+  health_check_interval_seconds: 60
+  secrets_backend: hashicorp_vault  # Change to aws_secrets_manager if preferred
+  log_level: INFO
+
+agents:
+
+  - id: edr-agent
+    name: EDR Agent
+    category: Endpoint
+    priority: P1
+    status: required
+    module: agents/edr-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8001
+    integrations:
+      - siem-agent
+      - vulnerability-agent
+      - risk-dashboard-agent
+      - incident-response-agent
+    tools:
+      - name: crowdstrike
+        env_key: CROWDSTRIKE_API_KEY
+      - name: sentinelone
+        env_key: SENTINELONE_API_KEY
+    report_metrics:
+      - endpoint_compromise_rate
+      - mttd
+      - mttr
+      - top_threat_actors
+
+  - id: email-security-agent
+    name: Email Security Agent
+    category: Communication
+    priority: P1
+    status: required
+    module: agents/email-security-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8002
+    integrations:
+      - siem-agent
+      - brand-protection-agent
+      - dlp-agent
+      - threat-intel-agent
+    tools:
+      - name: microsoft_defender_o365
+        env_key: MS_DEFENDER_API_KEY
+      - name: proofpoint
+        env_key: PROOFPOINT_API_KEY
+    report_metrics:
+      - phishing_click_rate
+      - bec_attempts_blocked
+      - email_threat_volume
+
+  - id: dns-security-agent
+    name: DNS Security Agent
+    category: Network
+    priority: P1
+    status: required
+    module: agents/dns-security-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8003
+    integrations:
+      - siem-agent
+      - web-proxy-agent
+      - threat-intel-agent
+    tools:
+      - name: cisco_umbrella
+        env_key: UMBRELLA_API_KEY
+      - name: cloudflare_gateway
+        env_key: CLOUDFLARE_API_KEY
+    report_metrics:
+      - blocked_malicious_domains
+      - c2_callbacks_prevented
+      - dns_anomalies
+
+  - id: asset-management-agent
+    name: Asset Management Agent
+    category: Governance
+    priority: P1
+    status: required
+    module: agents/asset-management-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8004
+    integrations:
+      - vulnerability-agent
+      - edr-agent
+      - risk-dashboard-agent
+      - cloud-security-agent
+    tools:
+      - name: axonius
+        env_key: AXONIUS_API_KEY
+      - name: servicenow_cmdb
+        env_key: SERVICENOW_API_KEY
+    report_metrics:
+      - asset_inventory_count
+      - shadow_it_discovered
+      - unmanaged_devices
+
+  - id: siem-agent
+    name: SIEM Agent
+    category: Detection
+    priority: P1
+    status: required
+    module: agents/siem-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8005
+    integrations:
+      - all  # SIEM receives from all agents
+    tools:
+      - name: splunk
+        env_key: SPLUNK_API_KEY
+      - name: microsoft_sentinel
+        env_key: SENTINEL_API_KEY
+    report_metrics:
+      - alert_volume
+      - true_positive_rate
+      - mttd
+      - coverage_gaps
+
+  - id: web-proxy-agent
+    name: Web Proxy Agent
+    category: Network
+    priority: P2
+    status: required
+    module: agents/web-proxy-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8006
+    integrations:
+      - dlp-agent
+      - dns-security-agent
+      - siem-agent
+    tools:
+      - name: zscaler
+        env_key: ZSCALER_API_KEY
+    report_metrics:
+      - blocked_categories
+      - ssl_inspection_hits
+      - policy_violations
+
+  - id: dlp-agent
+    name: DLP Agent
+    category: Data
+    priority: P1
+    status: required
+    module: agents/dlp-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8007
+    integrations:
+      - email-security-agent
+      - web-proxy-agent
+      - siem-agent
+    tools:
+      - name: microsoft_purview
+        env_key: PURVIEW_API_KEY
+      - name: nightfall_ai
+        env_key: NIGHTFALL_API_KEY
+    report_metrics:
+      - sensitive_data_incidents
+      - policy_violations
+      - data_at_risk_volume
+
+  - id: api-gateway-agent
+    name: API Gateway Agent
+    category: Application
+    priority: P1
+    status: required
+    module: agents/api-gateway-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8008
+    integrations:
+      - waf-bot-agent
+      - siem-agent
+      - risk-dashboard-agent
+    tools:
+      - name: kong
+        env_key: KONG_API_KEY
+      - name: aws_api_gateway
+        env_key: AWS_API_GATEWAY_KEY
+    report_metrics:
+      - api_abuse_attempts
+      - auth_failures
+      - anomalous_endpoints
+
+  - id: waf-bot-agent
+    name: WAF + Bot Management Agent
+    category: Application
+    priority: P1
+    status: required
+    module: agents/waf-bot-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8009
+    integrations:
+      - api-gateway-agent
+      - siem-agent
+      - brand-protection-agent
+    tools:
+      - name: cloudflare_waf
+        env_key: CLOUDFLARE_WAF_KEY
+      - name: imperva
+        env_key: IMPERVA_API_KEY
+    report_metrics:
+      - attack_volume
+      - bot_traffic_percentage
+      - top_attack_vectors
+
+  - id: sast-dast-agent
+    name: SAST/DAST Agent
+    category: AppSec
+    priority: P1
+    status: required
+    module: agents/sast-dast-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8010
+    integrations:
+      - vulnerability-agent
+      - risk-dashboard-agent
+    tools:
+      - name: checkmarx
+        env_key: CHECKMARX_API_KEY
+      - name: owasp_zap
+        env_key: ZAP_API_KEY
+      - name: snyk
+        env_key: SNYK_API_KEY
+    report_metrics:
+      - vulnerabilities_by_severity
+      - code_coverage
+      - remediation_sla_met
+
+  - id: brand-protection-agent
+    name: Brand Protection Agent
+    category: Threat Intel
+    priority: P2
+    status: required
+    module: agents/brand-protection-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8011
+    integrations:
+      - email-security-agent
+      - dns-security-agent
+      - siem-agent
+    tools:
+      - name: recorded_future
+        env_key: RECORDED_FUTURE_API_KEY
+      - name: zerofox
+        env_key: ZEROFOX_API_KEY
+    report_metrics:
+      - lookalike_domains_found
+      - takedowns_executed
+      - brand_abuse_incidents
+
+  - id: vulnerability-agent
+    name: Vulnerability Management Agent
+    category: Governance
+    priority: P1
+    status: required
+    module: agents/vulnerability-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8012
+    integrations:
+      - asset-management-agent
+      - siem-agent
+      - risk-dashboard-agent
+    tools:
+      - name: tenable
+        env_key: TENABLE_API_KEY
+      - name: qualys
+        env_key: QUALYS_API_KEY
+    report_metrics:
+      - open_cves_by_severity
+      - patch_sla_compliance
+      - risk_score_trend
+
+  - id: risk-dashboard-agent
+    name: Risk Assessment Dashboard Agent
+    category: Governance
+    priority: P1
+    status: required
+    module: agents/risk-dashboard-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8013
+    integrations:
+      - all  # Aggregates from all agents
+    tools:
+      - name: paperclip_bi
+        env_key: PAPERCLIP_BI_KEY
+    report_metrics:
+      - overall_security_posture_score
+      - risk_heatmap
+      - compliance_percentage
+
+  - id: iam-pam-agent
+    name: IAM / PAM Agent
+    category: Identity
+    priority: P1
+    status: recommended
+    module: agents/iam-pam-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8014
+    integrations:
+      - siem-agent
+      - risk-dashboard-agent
+      - edr-agent
+    tools:
+      - name: okta
+        env_key: OKTA_API_KEY
+      - name: cyberark
+        env_key: CYBERARK_API_KEY
+    report_metrics:
+      - privileged_access_violations
+      - mfa_adoption_rate
+      - orphaned_accounts
+
+  - id: cloud-security-agent
+    name: Cloud Security Posture Agent
+    category: Cloud
+    priority: P1
+    status: recommended
+    module: agents/cloud-security-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8015
+    integrations:
+      - asset-management-agent
+      - vulnerability-agent
+      - siem-agent
+    tools:
+      - name: wiz
+        env_key: WIZ_API_KEY
+      - name: prisma_cloud
+        env_key: PRISMA_API_KEY
+    report_metrics:
+      - cloud_misconfigs
+      - compliance_score
+      - critical_cloud_risks
+
+  - id: incident-response-agent
+    name: Incident Response Agent
+    category: Detection
+    priority: P1
+    status: recommended
+    module: agents/incident-response-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8016
+    integrations:
+      - siem-agent
+      - edr-agent
+      - risk-dashboard-agent
+    tools:
+      - name: thehive
+        env_key: THEHIVE_API_KEY
+      - name: pagerduty
+        env_key: PAGERDUTY_API_KEY
+      - name: jira
+        env_key: JIRA_API_KEY
+    report_metrics:
+      - incidents_by_severity
+      - mttr
+      - playbook_automation_rate
+
+  - id: threat-intel-agent
+    name: Threat Intelligence Agent
+    category: Threat Intel
+    priority: P2
+    status: recommended
+    module: agents/threat-intel-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8017
+    integrations:
+      - siem-agent
+      - dns-security-agent
+      - waf-bot-agent
+    tools:
+      - name: misp
+        env_key: MISP_API_KEY
+      - name: virustotal
+        env_key: VIRUSTOTAL_API_KEY
+    report_metrics:
+      - new_iocs_ingested
+      - ttps_observed
+      - threat_actor_activity
+
+  - id: backup-recovery-agent
+    name: Backup & Recovery Agent
+    category: Resilience
+    priority: P2
+    status: recommended
+    module: agents/backup-recovery-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8018
+    integrations:
+      - asset-management-agent
+      - risk-dashboard-agent
+      - siem-agent
+    tools:
+      - name: veeam
+        env_key: VEEAM_API_KEY
+      - name: aws_backup
+        env_key: AWS_BACKUP_KEY
+    report_metrics:
+      - backup_success_rate
+      - recovery_drill_results
+      - rto_compliance
+
+  - id: compliance-grc-agent
+    name: Compliance & GRC Agent
+    category: Governance
+    priority: P2
+    status: recommended
+    module: agents/compliance-grc-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8019
+    integrations:
+      - risk-dashboard-agent
+      - all
+    tools:
+      - name: vanta
+        env_key: VANTA_API_KEY
+      - name: drata
+        env_key: DRATA_API_KEY
+    report_metrics:
+      - compliance_percentage_by_framework
+      - open_findings
+      - audit_readiness_score
+
+  - id: third-party-risk-agent
+    name: Third-Party Risk Agent
+    category: Governance
+    priority: P2
+    status: ecommerce_specific
+    module: agents/third-party-risk-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8022
+    integrations: [siem-agent, compliance-grc-agent, risk-dashboard-agent]
+    tools:
+      - name: securityscorecard
+        env_key: SECURITYSCORECARD_API_KEY
+      - name: bitsight
+        env_key: BITSIGHT_API_KEY
+    report_metrics: [vendors_monitored, by_risk_tier, critical_vendors]
+
+  - id: mobile-app-security-agent
+    name: Mobile App Security Agent
+    category: AppSec
+    priority: P2
+    status: ecommerce_specific
+    module: agents/mobile-app-security-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8023
+    integrations: [vulnerability-agent, risk-dashboard-agent, sast-dast-agent]
+    tools:
+      - name: nowsecure
+        env_key: NOWSECURE_API_KEY
+      - name: mobsf
+        env_key: MOBSF_API_KEY
+      - name: snyk
+        env_key: SNYK_API_KEY
+    report_metrics: [scans_completed, critical_findings, releases_blocked, owasp_coverage]
+
+  - id: data-residency-agent
+    name: Data Residency Agent
+    category: Data
+    priority: P1
+    status: ecommerce_specific
+    module: agents/data-residency-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8024
+    integrations: [dlp-agent, cloud-security-agent, compliance-grc-agent, siem-agent]
+    tools:
+      - name: aws_config
+        env_key: AWS_ACCESS_KEY_ID
+      - name: azure_resource_graph
+        env_key: AZURE_SUBSCRIPTION_KEY
+    report_metrics: [resources_checked, residency_violations, cross_border_transfers_blocked, regulations_enforced]
+
+  - id: cdn-security-agent
+    name: CDN Security Agent
+    category: Network
+    priority: P2
+    status: ecommerce_specific
+    module: agents/cdn-security-agent
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8026
+    integrations: [waf-bot-agent, siem-agent, risk-dashboard-agent]
+    tools:
+      - name: cloudflare
+        env_key: CLOUDFLARE_API_KEY
+      - name: akamai
+        env_key: AKAMAI_API_KEY
+    report_metrics: [domains_monitored, misconfigs_found, security_score, cache_poisoning_attempts]
+
+  - id: chat-interface-agent
+    name: Human-Agent Chat Interface
+    category: Integration
+    priority: P1
+    status: required
+    module: agents/chat-interface
+    entrypoint: src/main.py
+    health_endpoint: /health
+    port: 8025
+    integrations: [all]
+    tools:
+      - name: slack
+        env_key: SLACK_BOT_TOKEN
+      - name: microsoft_teams
+        env_key: TEAMS_CLIENT_SECRET
+      - name: webex
+        env_key: WEBEX_ACCESS_TOKEN
+      - name: google_chat
+        env_key: GCHAT_WEBHOOK_URL
+    report_metrics: [messages_processed, commands_executed, alerts_dispatched, setups_completed]
