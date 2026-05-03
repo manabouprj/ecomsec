@@ -245,14 +245,92 @@ Reports generated as PDFs, stored in `reports/generated/`, and auto-delivered to
 
 ### 3. High Level Design (HLD) and Low Level Design (LLD)
 
-Full architecture documentation is included in the repository:
+Comprehensive architecture documentation lives in the `docs/` folder. Both the HLD and LLD are now fully detailed Markdown documents, viewable directly in GitHub:
 
-| Document | Location | Contents |
-|----------|----------|---------|
-| **HLD v1.0** | `docs/hld/EcomSec-HLD-v1.0.docx` | Executive summary, layered architecture, agent categories, data flow, chat interface design, SPOG widget catalogue, compliance mapping, phased deployment overview |
-| **LLD v1.0** | `docs/lld/EcomSec-LLD-v1.0.docx` | Base agent class spec, per-agent technical tables (port, tools, events, auth, secrets, scaling, retry, chat commands), full event catalogue, database schema, infrastructure sizing, port reference |
+| Document | Location | Pages | Contents |
+|----------|----------|-------|----------|
+| **HLD v2.0** | [`docs/hld/EcomSec-HLD-v2.0.md`](docs/hld/EcomSec-HLD-v2.0.md) | 14 sections | Executive summary, business drivers, conceptual architecture, layered design, full agent catalogue, chat interface design, SPOG widget catalogue, data flow with end-to-end ATO example, security architecture (defence-in-depth + zero trust), compliance mapping (PCI DSS / ISO 27001 / NIST CSF / UAE PDPL / DIFC / ADGM / MITRE ATT&CK / OWASP), phased deployment, reporting cadence, operational model, risk register |
+| **LLD v2.0** | [`docs/lld/EcomSec-LLD-v2.0.md`](docs/lld/EcomSec-LLD-v2.0.md) | All 26 agents | Per-agent specifications including: tool integrations with documentation links, authentication mechanisms, **step-by-step API/token setup procedures**, required secrets, IAM/permission scopes, polling/event behaviour, events published/subscribed, key metrics, scaling and retry strategy, chat commands |
+| **HLD v1.0 (Word)** | `docs/hld/EcomSec-HLD-v1.0.docx` | 12 pages | Original branded Word version of the HLD |
+| **LLD v1.0 (Word)** | `docs/lld/EcomSec-LLD-v1.0.docx` | 18 pages | Original branded Word version of the LLD |
+
+> **For repository reviewers:** The Markdown versions render directly in GitHub and contain significantly more detail than the Word versions — including the full token/API setup procedure for every single agent. Start there.
 
 ---
+
+### 3.1 What's in the LLD
+
+The LLD answers, for each of the 26 agents, the operational question: **"How do I get this agent running in production?"**
+
+For every agent the LLD specifies:
+
+1. **Tool integrations** — exact APIs/SDKs used, with documentation links
+2. **Authentication mechanism** — token type, scope, lifetime
+3. **Account / API setup steps** — exactly how to obtain credentials from the vendor (Falcon Console, Azure AD, Okta admin, Stripe Dashboard, etc.)
+4. **Required secrets** — environment variable names referenced from the vault
+5. **Required permissions / IAM scopes** — least-privilege role required
+6. **Polling and event behaviour** — when and how the agent runs
+7. **Events published and subscribed** — agent's role in the Paperclip event bus
+8. **Key metrics** — what gets reported to the Risk Dashboard
+9. **Scaling and retry strategy** — production deployment guidance
+10. **Chat commands** — operator interactions via Slack/Teams/Webex/Google Chat
+
+#### Quick-reference: where each agent's setup lives
+
+| Agent | LLD Section | Primary Vendor Setup |
+|-------|-------------|---------------------|
+| EDR | [§2.1](docs/lld/EcomSec-LLD-v2.0.md#21-edr-agent) | CrowdStrike API Clients (OAuth2) |
+| Email Security | [§2.2](docs/lld/EcomSec-LLD-v2.0.md#22-email-security-agent) | Azure AD app registration + Graph API |
+| DNS Security | [§2.3](docs/lld/EcomSec-LLD-v2.0.md#23-dns-security-agent) | Cisco Umbrella API keys |
+| Asset Management | [§2.4](docs/lld/EcomSec-LLD-v2.0.md#24-asset-management-agent) | Axonius API key / ServiceNow service account |
+| SIEM | [§2.5](docs/lld/EcomSec-LLD-v2.0.md#25-siem-agent) | Splunk token / Sentinel Azure AD app |
+| Web Proxy | [§2.6](docs/lld/EcomSec-LLD-v2.0.md#26-web-proxy-agent) | Zscaler API key |
+| DLP | [§2.7](docs/lld/EcomSec-LLD-v2.0.md#27-dlp-agent) | Microsoft Purview / Nightfall AI |
+| API Gateway | [§2.8](docs/lld/EcomSec-LLD-v2.0.md#28-api-gateway-agent) | Kong RBAC / AWS IAM keys |
+| WAF + Bot | [§2.9](docs/lld/EcomSec-LLD-v2.0.md#29-waf--bot-management-agent) | Cloudflare API token |
+| SAST/DAST | [§2.10](docs/lld/EcomSec-LLD-v2.0.md#210-sastdast-agent) | Snyk / Checkmarx API keys |
+| Brand Protection | [§2.11](docs/lld/EcomSec-LLD-v2.0.md#211-brand-protection-agent) | ZeroFox / Recorded Future tokens |
+| Vulnerability | [§2.12](docs/lld/EcomSec-LLD-v2.0.md#212-vulnerability-management-agent) | Tenable.io access keys |
+| Risk Dashboard | [§2.13](docs/lld/EcomSec-LLD-v2.0.md#213-risk-assessment-dashboard-agent) | Internal Postgres role |
+| IAM/PAM | [§3.1](docs/lld/EcomSec-LLD-v2.0.md#31-iampam-agent) | Okta API token / CyberArk app credentials |
+| Cloud Security | [§3.2](docs/lld/EcomSec-LLD-v2.0.md#32-cloud-security-posture-agent) | Wiz service account / AWS IAM role |
+| Incident Response | [§3.3](docs/lld/EcomSec-LLD-v2.0.md#33-incident-response-agent) | TheHive / PagerDuty / Jira tokens |
+| Threat Intelligence | [§3.4](docs/lld/EcomSec-LLD-v2.0.md#34-threat-intelligence-agent) | MISP authkey / VirusTotal API |
+| Backup & Recovery | [§3.5](docs/lld/EcomSec-LLD-v2.0.md#35-backup--recovery-agent) | Veeam OAuth2 / AWS IAM |
+| Compliance/GRC | [§3.6](docs/lld/EcomSec-LLD-v2.0.md#36-compliance--grc-agent) | Vanta / Drata API tokens |
+| Chat Interface | [§3.7](docs/lld/EcomSec-LLD-v2.0.md#37-chat-interface-agent) | Slack Bolt + Teams Azure AD + Webex bot + GChat service account |
+| PCI DSS Segmentation | [§4.1](docs/lld/EcomSec-LLD-v2.0.md#41-pci-dss-segmentation-agent) | Palo Alto / Fortinet API + AWS VPC Flow IAM |
+| Fraud Detection | [§4.2](docs/lld/EcomSec-LLD-v2.0.md#42-fraud-detection-agent) | Stripe restricted key + Sift API |
+| Third-Party Risk | [§4.3](docs/lld/EcomSec-LLD-v2.0.md#43-third-party-risk-agent) | SecurityScorecard / BitSight tokens |
+| Mobile App Security | [§4.4](docs/lld/EcomSec-LLD-v2.0.md#44-mobile-app-security-agent) | MobSF (self-hosted) or NowSecure |
+| Data Residency | [§4.5](docs/lld/EcomSec-LLD-v2.0.md#45-data-residency-agent) | AWS Config IAM / Azure Resource Graph |
+| CDN Security | [§4.6](docs/lld/EcomSec-LLD-v2.0.md#46-cdn-security-agent) | Cloudflare token (reused) / Akamai .edgerc |
+
+---
+
+### 3.2 What's in the HLD
+
+The HLD answers the strategic question: **"Why is the platform built this way, and how does it deliver value?"**
+
+Key sections include:
+
+- **Business context and drivers** — UAE regulatory environment, fraud rate targets, compliance roadmap
+- **Conceptual architecture diagram** — full visual of all 26 agents and the orchestration layer
+- **Layered architecture** — 5 horizontal layers (tool integration → agent mesh → orchestration → human interface → reporting)
+- **Agent categories** — 14 security domains explained with full agent catalogue table
+- **Chat interface design** — channel mapping, command catalogue, setup wizard flow
+- **SPOG dashboard** — dual-audience design, full widget catalogue
+- **End-to-end data flow** — including a worked Account Takeover example showing how 6 agents coordinate
+- **Security architecture** — defence-in-depth at every layer plus zero-trust principles
+- **Compliance mapping** — every framework (PCI DSS, ISO 27001, NIST CSF, UAE PDPL, DIFC, ADGM, MITRE ATT&CK, OWASP) mapped to agents
+- **Phased deployment strategy** — the 4-phase rollout with budget bands
+- **Reporting architecture** — monthly technical and quarterly business report sections
+- **Operational model** — roles, daily/weekly/monthly cadence, incident response workflow
+- **Risk register and assumptions** — what could go wrong and what we're depending on
+
+---
+
+### 4. Installation Guide
 
 ### 4. Installation Guide
 
