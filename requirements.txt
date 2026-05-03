@@ -23,7 +23,7 @@ asyncpg==0.29.0
 sqlalchemy==2.0.30
 
 # Security tooling
-PyJWT==2.10.2
+PyJWT==2.12.0
 cryptography==44.0.1
 
 # Reporting
