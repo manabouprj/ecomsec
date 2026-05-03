@@ -28,7 +28,7 @@ cryptography==46.0.7
 
 # Reporting
 jinja2==3.1.4
-weasyprint==65.0
+weasyprint==68.0
 pandas==2.2.2
 openpyxl==3.1.4
 
