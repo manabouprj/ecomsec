@@ -23,8 +23,8 @@ asyncpg==0.29.0
 sqlalchemy==2.0.30
 
 # Security tooling
-python-jose==3.3.0
-cryptography==42.0.7
+PyJWT==2.10.1
+cryptography==44.0.0
 
 # Reporting
 jinja2==3.1.4
